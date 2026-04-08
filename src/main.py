@@ -123,6 +123,10 @@ def main() -> None:
     replay_parser.add_argument("file", type=str, help="Replay file path (.json.gz)")
     replay_parser.add_argument("--fps", type=int, default=60, help="Render FPS")
 
+    # Tournament subcommand
+    tourn_parser = subparsers.add_parser("tournament", help="Run a round-robin tournament")
+    tourn_parser.add_argument("--games", type=int, default=20, help="Games per matchup (default: 20)")
+
     args = parser.parse_args()
 
     if args.command == "simulate":
@@ -141,14 +145,36 @@ def main() -> None:
     elif args.command == "replay":
         from src.gui.replay_viewer import run_replay_viewer
         run_replay_viewer(args.file, fps=args.fps)
+    elif args.command == "tournament":
+        from src.core.tournament import (
+            create_build, random_build, run_tournament, print_tournament_results,
+        )
+        import numpy as _np
+        rng = _np.random.default_rng(42)
+        # Default tournament: one build per behavior type with balanced stats
+        builds = [
+            create_build("Tank", "hunter", 7, 3, 2, 5, 8, 5),
+            create_build("Ghost", "camper", 3, 5, 8, 4, 7, 3),
+            create_build("Looter", "scavenger", 4, 6, 5, 5, 6, 4),
+            create_build("Wanderer", "nomad", 5, 5, 5, 5, 5, 5),
+            create_build("Meta", "adaptive", 5, 4, 4, 6, 7, 4),
+            random_build(rng, "Wildcard"),
+        ]
+        print("Tournament builds:")
+        for b in builds:
+            print(f"  {b}")
+        results = run_tournament(builds, games_per_match=args.games)
+        print_tournament_results(builds, results)
     else:
         parser.print_help()
         print("\nExamples:")
-        print("  python src/main.py simulate --sims 1000 --output results/")
-        print("  python src/main.py evolve --generations 200 --output evolution_results/")
+        print("  python src/main.py simulate --sims 1000")
+        print("  python src/main.py evolve --generations 200")
         print("  python src/main.py watch --seed 42")
-        print("  python src/main.py record --seed 42 --output replays/game1.json.gz")
-        print("  python src/main.py replay replays/game1.json.gz")
+        print("  python src/main.py watch --seed 42 --squads")
+        print("  python src/main.py record --seed 42")
+        print("  python src/main.py replay replays/game.json.gz")
+        print("  python src/main.py tournament --games 20")
 
 
 if __name__ == "__main__":
