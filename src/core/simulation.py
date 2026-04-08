@@ -15,6 +15,7 @@ from src.core.agent import (
     Stats,
     decide_action,
     generate_agents,
+    generate_squads,
 )
 from src.core.combat import resolve_combat
 from src.core.map import GameMap, generate_map, shrink_zone, spawn_supply_drop
@@ -84,8 +85,30 @@ class GameState:
 
 
 def _kill_agent(agent: Agent, state: GameState, cause: str, killer_id: int = -1) -> None:
-    """Mark agent dead and log events."""
+    """Mark agent dead (or downed in squad mode) and log events."""
+    # In squad mode, first death downs the agent (revivable by teammates)
+    if agent.team_id >= 0 and not agent.downed and cause == "combat":
+        teammates_alive = any(
+            a.alive and a.team_id == agent.team_id and a.id != agent.id
+            for a in state.agents
+        )
+        if teammates_alive:
+            agent.downed = True
+            agent.alive = False
+            state.death_order.append(agent.id)
+            state.death_events.append(DeathEvent(
+                turn=state.turn, agent_id=agent.id,
+                x=agent.x, y=agent.y, cause="downed",
+            ))
+            if killer_id >= 0:
+                state.kill_events.append(KillEvent(
+                    turn=state.turn, killer_id=killer_id, victim_id=agent.id,
+                    x=agent.x, y=agent.y, cause="downed",
+                ))
+            return
+
     agent.alive = False
+    agent.downed = False
     state.death_order.append(agent.id)
 
     state.death_events.append(DeathEvent(
@@ -199,10 +222,14 @@ def _check_loot(agent: Agent, state: GameState) -> None:
                 agent.armor = drop.armor
 
 
+def _are_teammates(a: Agent, b: Agent) -> bool:
+    """Check if two agents are on the same team."""
+    return a.team_id >= 0 and a.team_id == b.team_id
+
+
 def _find_combat_pairs(state: GameState) -> list[tuple[Agent, Agent]]:
-    """Find pairs of alive agents on same or adjacent tiles."""
+    """Find pairs of alive agents on same or adjacent tiles (skip teammates)."""
     alive = state.alive_agents
-    # Spatial hash for fast lookup
     positions: dict[tuple[int, int], list[Agent]] = {}
     for a in alive:
         positions.setdefault((a.x, a.y), []).append(a)
@@ -215,6 +242,8 @@ def _find_combat_pairs(state: GameState) -> list[tuple[Agent, Agent]]:
         for i in range(len(agents_on_tile)):
             for j in range(i + 1, len(agents_on_tile)):
                 a, b = agents_on_tile[i], agents_on_tile[j]
+                if _are_teammates(a, b):
+                    continue
                 pair_key = (min(a.id, b.id), max(a.id, b.id))
                 if pair_key not in seen_pairs:
                     seen_pairs.add(pair_key)
@@ -227,17 +256,36 @@ def _find_combat_pairs(state: GameState) -> list[tuple[Agent, Agent]]:
                 if dx == 0 and dy == 0:
                     continue
                 if abs(dx) + abs(dy) > 2:
-                    continue  # Manhattan distance cap
+                    continue
                 neighbor = (x + dx, y + dy)
                 if neighbor in positions:
                     for a in agents_here:
                         for b in positions[neighbor]:
+                            if _are_teammates(a, b):
+                                continue
                             pair_key = (min(a.id, b.id), max(a.id, b.id))
                             if pair_key not in seen_pairs:
                                 seen_pairs.add(pair_key)
                                 pairs.append((a, b))
 
     return pairs
+
+
+def _revive_downed_teammates(state: GameState) -> None:
+    """Teammates adjacent to downed allies can revive them (50% HP)."""
+    for agent in state.alive_agents:
+        if agent.team_id < 0:
+            continue
+        for other in state.agents:
+            if (other.downed and not other.alive and other.team_id == agent.team_id
+                    and abs(other.x - agent.x) + abs(other.y - agent.y) <= 1):
+                other.alive = True
+                other.downed = False
+                other.hp = other.max_hp // 2
+                # Remove from death order
+                if other.id in state.death_order:
+                    state.death_order.remove(other.id)
+                break  # one revive per agent per turn
 
 
 def _resolve_all_combat(state: GameState, rng: np.random.Generator) -> None:
@@ -313,6 +361,9 @@ def _run_turn(state: GameState, agents: list[Agent], game_map: GameMap,
     # Combat
     _resolve_all_combat(state, rng)
 
+    # Revive downed teammates (squad mode)
+    _revive_downed_teammates(state)
+
     # Bookkeeping
     for agent in state.alive_agents:
         agent.turns_survived += 1
@@ -325,23 +376,37 @@ def step_simulation(
     num_agents: int = 100,
     max_turns: int = 500,
     zone_shrink_interval: int = 15,
+    squads: bool = False,
+    squad_size: int = 4,
 ):
     """Generator that yields GameState after each turn for real-time rendering."""
     rng = np.random.default_rng(seed)
 
     game_map = generate_map(rng, width=map_width, height=map_height)
-    agents = generate_agents(rng, game_map, num_agents=num_agents)
+    if squads:
+        agents = generate_squads(rng, game_map, num_agents=num_agents, squad_size=squad_size)
+    else:
+        agents = generate_agents(rng, game_map, num_agents=num_agents)
     state = GameState(game_map=game_map, agents=agents)
 
     yield state  # initial state (turn 0)
 
-    while state.alive_count > 1 and state.turn < max_turns:
+    def _game_ongoing() -> bool:
+        if squads:
+            # Game ends when all alive agents are on the same team (or 0-1 alive)
+            alive = [a for a in agents if a.alive]
+            if len(alive) <= 1:
+                return False
+            teams = {a.team_id for a in alive}
+            return len(teams) > 1
+        return state.alive_count > 1
+
+    while _game_ongoing() and state.turn < max_turns:
         prev_kill_count = len(state.kill_events)
         prev_death_count = len(state.death_events)
 
         _run_turn(state, agents, game_map, rng, zone_shrink_interval)
 
-        # Attach new events this turn for the viewer to consume
         state.new_kills = state.kill_events[prev_kill_count:]
         state.new_deaths = state.death_events[prev_death_count:]
 

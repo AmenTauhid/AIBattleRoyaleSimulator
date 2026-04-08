@@ -109,6 +109,7 @@ def main() -> None:
     watch_parser.add_argument("--map-size", type=int, default=100, help="Map size (default: 100)")
     watch_parser.add_argument("--agents", type=int, default=100, help="Number of agents (default: 100)")
     watch_parser.add_argument("--fps", type=int, default=60, help="Render FPS (default: 60)")
+    watch_parser.add_argument("--squads", action="store_true", help="Enable squad mode (teams of 4)")
 
     # Record replay subcommand
     rec_parser = subparsers.add_parser("record", help="Record a simulation replay to file")
@@ -131,7 +132,8 @@ def main() -> None:
     elif args.command == "watch":
         from src.gui.viewer import run_viewer
         run_viewer(seed=args.seed, map_size=args.map_size,
-                   num_agents=args.agents, fps=args.fps)
+                   num_agents=args.agents, fps=args.fps,
+                   squads=args.squads)
     elif args.command == "record":
         from src.core.replay import record_replay
         path = record_replay(args.seed, args.output, args.map_size, args.map_size, args.agents)

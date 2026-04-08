@@ -147,6 +147,77 @@ def generate_agents(
     return agents
 
 
+def generate_squads(
+    rng: np.random.Generator,
+    game_map: GameMap,
+    num_agents: int = 100,
+    squad_size: int = 4,
+) -> list[Agent]:
+    """Create agents organized into squads. Teammates spawn near each other."""
+    num_squads = num_agents // squad_size
+    agents: list[Agent] = []
+    occupied: set[tuple[int, int]] = set()
+
+    behaviors = list(BehaviorType)
+    margin_x = game_map.width // 5
+    margin_y = game_map.height // 5
+
+    agent_id = 0
+    for squad_id in range(num_squads):
+        # Pick a spawn cluster center for this squad
+        while True:
+            cx = int(rng.integers(margin_x + 3, game_map.width - margin_x - 3))
+            cy = int(rng.integers(margin_y + 3, game_map.height - margin_y - 3))
+            if (cx, cy) not in game_map.obstacles:
+                break
+
+        squad_behavior = behaviors[squad_id % len(behaviors)]
+
+        for _ in range(squad_size):
+            stats = generate_stats(rng)
+            max_hp = 50 + stats.health * 10
+
+            # Spawn near squad center
+            for _attempt in range(50):
+                ax = cx + int(rng.integers(-3, 4))
+                ay = cy + int(rng.integers(-3, 4))
+                ax = max(margin_x, min(game_map.width - margin_x - 1, ax))
+                ay = max(margin_y, min(game_map.height - margin_y - 1, ay))
+                if (ax, ay) not in game_map.obstacles and (ax, ay) not in occupied:
+                    break
+            occupied.add((ax, ay))
+
+            agents.append(Agent(
+                id=agent_id,
+                behavior=squad_behavior,
+                base_stats=stats,
+                hp=max_hp,
+                max_hp=max_hp,
+                x=ax,
+                y=ay,
+                team_id=squad_id,
+            ))
+            agent_id += 1
+
+    # Fill remaining agents as solo
+    while len(agents) < num_agents:
+        stats = generate_stats(rng)
+        max_hp = 50 + stats.health * 10
+        while True:
+            ax = int(rng.integers(margin_x, game_map.width - margin_x))
+            ay = int(rng.integers(margin_y, game_map.height - margin_y))
+            if (ax, ay) not in game_map.obstacles and (ax, ay) not in occupied:
+                break
+        occupied.add((ax, ay))
+        agents.append(Agent(
+            id=agent_id, behavior=rng.choice(behaviors),
+            base_stats=stats, hp=max_hp, max_hp=max_hp, x=ax, y=ay, team_id=-1,
+        ))
+        agent_id += 1
+
+    return agents
+
+
 # ---------------------------------------------------------------------------
 # Behavior trees
 # ---------------------------------------------------------------------------
@@ -163,6 +234,9 @@ def _find_nearest_enemy(agent: Agent, agents: list[Agent], max_range: int) -> Ag
     best_dist = max_range + 1
     for other in agents:
         if other.id == agent.id or not other.alive:
+            continue
+        # Skip teammates
+        if agent.team_id >= 0 and agent.team_id == other.team_id:
             continue
         dist = abs(other.x - agent.x) + abs(other.y - agent.y)
         if dist < best_dist:

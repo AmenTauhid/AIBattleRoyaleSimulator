@@ -39,11 +39,12 @@ BEHAVIOR_LABELS = {
 
 class Viewer:
     def __init__(self, seed: int = 42, map_size: int = 100,
-                 num_agents: int = 100, fps: int = 60):
+                 num_agents: int = 100, fps: int = 60, squads: bool = False):
         self.seed = seed
         self.map_size = map_size
         self.num_agents = num_agents
         self.target_fps = fps
+        self.squads = squads
         self.cell_size = GRID_SIZE / map_size
 
         pygame.init()
@@ -64,6 +65,7 @@ class Viewer:
         """Start or restart the simulation."""
         self.sim_gen = step_simulation(
             self.seed, self.map_size, self.map_size, self.num_agents,
+            squads=self.squads,
         )
         self.state: GameState = next(self.sim_gen)
 
@@ -620,7 +622,9 @@ class Viewer:
 
 
 def run_viewer(seed: int = 42, map_size: int = 100,
-               num_agents: int = 100, fps: int = 60) -> None:
+               num_agents: int = 100, fps: int = 60,
+               squads: bool = False) -> None:
     """Launch the Pygame viewer."""
-    viewer = Viewer(seed=seed, map_size=map_size, num_agents=num_agents, fps=fps)
+    viewer = Viewer(seed=seed, map_size=map_size, num_agents=num_agents,
+                    fps=fps, squads=squads)
     viewer.run()
