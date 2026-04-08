@@ -37,6 +37,11 @@ def run_simulate(args: argparse.Namespace) -> None:
     print("Generating analysis...")
     generate_report(results, args.output)
 
+    # Matchup analysis
+    from src.analysis.matchups import analyze_matchups
+    print("Generating matchup analysis...")
+    analyze_matchups(results, args.output)
+
     data = _aggregate(results)
     print_summary(data)
 
@@ -127,6 +132,15 @@ def main() -> None:
     tourn_parser = subparsers.add_parser("tournament", help="Run a round-robin tournament")
     tourn_parser.add_argument("--games", type=int, default=20, help="Games per matchup (default: 20)")
 
+    # Replay database subcommands
+    save_parser = subparsers.add_parser("save-replay", help="Record a replay and add to database")
+    save_parser.add_argument("--seed", type=int, required=True, help="Seed to record")
+    save_parser.add_argument("--dir", type=str, default="replays", help="Replay directory")
+    save_parser.add_argument("--tags", type=str, nargs="*", default=[], help="Tags for this replay")
+
+    list_parser = subparsers.add_parser("list-replays", help="List all saved replays")
+    list_parser.add_argument("--dir", type=str, default="replays", help="Replay directory")
+
     args = parser.parse_args()
 
     if args.command == "simulate":
@@ -165,6 +179,14 @@ def main() -> None:
             print(f"  {b}")
         results = run_tournament(builds, games_per_match=args.games)
         print_tournament_results(builds, results)
+    elif args.command == "save-replay":
+        from src.core.replay_db import record_and_catalog
+        entry = record_and_catalog(args.seed, args.dir, args.tags)
+        print(f"Saved: {entry.filename}")
+        print(f"  Turns: {entry.total_turns}, Winner: {entry.winner_behavior} ({entry.winner_kills} kills)")
+    elif args.command == "list-replays":
+        from src.core.replay_db import list_replays
+        list_replays(args.dir)
     else:
         parser.print_help()
         print("\nExamples:")
