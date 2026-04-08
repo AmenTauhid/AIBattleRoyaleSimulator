@@ -80,6 +80,10 @@ class Viewer:
         self.show_vision = False          # toggle V key
         self.show_labels = False          # toggle L key
 
+        # Live graph data: population per behavior type over time
+        self.pop_history: dict[BehaviorType, list[int]] = {bt: [] for bt in BehaviorType}
+        self.total_alive_history: list[int] = []
+
         # Pre-render static map elements
         self._render_static_map()
 
@@ -219,6 +223,12 @@ class Viewer:
         # Trim kill feed
         self.kill_feed = self.kill_feed[-12:]
 
+        # Record population history for live graph
+        for bt in BehaviorType:
+            count = sum(1 for a in self.state.agents if a.alive and a.behavior == bt)
+            self.pop_history[bt].append(count)
+        self.total_alive_history.append(self.state.alive_count)
+
         # Check game over
         if self.state.alive_count <= 1:
             self.game_over = True
@@ -239,6 +249,9 @@ class Viewer:
 
         # Side panel
         self._render_panel()
+
+        # Live population graph
+        self._render_live_graph()
 
         # Bottom bar
         self._render_bottom_bar()
@@ -535,6 +548,52 @@ class Viewer:
             text = self.font.render(entry, True, TEXT_DIM)
             self.screen.blit(text, (x, y))
             y += 16
+
+    def _render_live_graph(self):
+        """Draw a live population-over-time graph at the bottom of the panel."""
+        if len(self.total_alive_history) < 2:
+            return
+
+        graph_w = PANEL_WIDTH - 30
+        graph_h = 100
+        graph_x = PANEL_X + 15
+        graph_y = WINDOW_HEIGHT - 50 - graph_h - 10
+
+        # Background
+        pygame.draw.rect(self.screen, (15, 15, 25),
+                         (graph_x, graph_y, graph_w, graph_h))
+        pygame.draw.rect(self.screen, PANEL_BORDER,
+                         (graph_x, graph_y, graph_w, graph_h), 1)
+
+        # Label
+        lbl = self.font.render("POPULATION", True, TEXT_DIM)
+        self.screen.blit(lbl, (graph_x, graph_y - 16))
+
+        n = len(self.total_alive_history)
+        max_val = self.total_agents
+
+        # Draw line for each behavior type
+        for bt in BehaviorType:
+            history = self.pop_history[bt]
+            if len(history) < 2:
+                continue
+            color = AGENT_COLORS[bt]
+            points = []
+            for i, val in enumerate(history):
+                px = graph_x + (i / max(n - 1, 1)) * graph_w
+                py = graph_y + graph_h - (val / max(max_val, 1)) * graph_h
+                points.append((px, py))
+            if len(points) >= 2:
+                pygame.draw.lines(self.screen, color, False, points, 1)
+
+        # Total alive line (white, thicker)
+        points = []
+        for i, val in enumerate(self.total_alive_history):
+            px = graph_x + (i / max(n - 1, 1)) * graph_w
+            py = graph_y + graph_h - (val / max(max_val, 1)) * graph_h
+            points.append((px, py))
+        if len(points) >= 2:
+            pygame.draw.lines(self.screen, TEXT_COLOR, False, points, 2)
 
     def _render_bottom_bar(self):
         """Draw controls help at the bottom."""
