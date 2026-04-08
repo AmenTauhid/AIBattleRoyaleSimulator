@@ -12,15 +12,15 @@ Requires Python 3.11+.
 
 ## Usage
 
+### Batch Simulation Mode
+
 ```bash
-# Run 1000 simulations (default)
-python src/main.py
+# Run 1000 simulations with random agents
+python src/main.py simulate --sims 1000 --output results/
 
 # Custom run
-python src/main.py --sims 500 --output results/ --map-size 100 --workers 4
+python src/main.py simulate --sims 500 --output results/ --map-size 100 --workers 4
 ```
-
-### CLI Arguments
 
 | Argument | Default | Description |
 |----------|---------|-------------|
@@ -29,19 +29,42 @@ python src/main.py --sims 500 --output results/ --map-size 100 --workers 4
 | `--map-size` | 100 | Map width and height |
 | `--workers` | auto | Number of parallel workers |
 
+### Evolution Mode (Genetic Algorithm)
+
+```bash
+# Evolve optimal agent builds over 200 generations
+python src/main.py evolve --generations 200 --output evolution_results/
+
+# Longer evolution with more games per evaluation
+python src/main.py evolve --generations 500 --games-per-eval 5 --output evolution_results/
+```
+
+| Argument | Default | Description |
+|----------|---------|-------------|
+| `--generations` | 200 | Number of evolution generations |
+| `--population` | 100 | Population size per generation |
+| `--games-per-eval` | 3 | Games per fitness evaluation |
+| `--mutation-rate` | 0.15 | Mutation rate per gene |
+| `--output` | `evolution_results/` | Output directory |
+| `--map-size` | 100 | Map width and height |
+| `--seed` | 42 | Random seed for reproducibility |
+
 ## Output
 
-After running, the output directory contains:
+### Simulation Mode
 
-- `charts/` - PNG charts with analysis visualizations
-  - `win_rate_by_behavior.png` - Win rate per behavior type
-  - `win_rate_by_dominant_stat.png` - Win rate by highest stat
-  - `avg_survival_by_behavior.png` - Average turns survived
-  - `kd_by_behavior.png` - Kill/death stats
-  - `death_heatmap.png` - Where agents die on the map
-  - `winner_stats_vs_avg.png` - Radar chart of winner stats vs average
-  - `placement_by_stat_level.png` - How stat levels affect placement
-- `meta_report.md` - Full markdown analysis with tables and charts
+- `charts/` - 7 PNG analysis charts (win rates, heatmap, radar, etc.)
+- `meta_report.md` - Full analysis with tables and optimal build
+
+### Evolution Mode
+
+- `charts/` - 5 PNG evolution charts
+  - `fitness_curve.png` - Best/average fitness over generations
+  - `stat_evolution.png` - How stat priorities shift during evolution
+  - `behavior_evolution.png` - Behavior type frequency over time
+  - `best_genome_radar.png` - Radar chart of the best evolved build
+  - `final_population_stats.png` - Stat distribution of final population
+- `evolution_report.md` - Full evolution analysis with optimal build
 
 ## Agent Design
 

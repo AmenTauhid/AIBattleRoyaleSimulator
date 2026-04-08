@@ -88,5 +88,6 @@ cython_debug/
 # Simulation output
 results/
 test_results/
+evolution_results/
 
 /.claude/settings.local.json
