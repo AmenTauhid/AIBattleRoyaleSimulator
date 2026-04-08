@@ -110,6 +110,18 @@ def main() -> None:
     watch_parser.add_argument("--agents", type=int, default=100, help="Number of agents (default: 100)")
     watch_parser.add_argument("--fps", type=int, default=60, help="Render FPS (default: 60)")
 
+    # Record replay subcommand
+    rec_parser = subparsers.add_parser("record", help="Record a simulation replay to file")
+    rec_parser.add_argument("--seed", type=int, default=42, help="Random seed")
+    rec_parser.add_argument("--output", type=str, default="replays/replay.json.gz", help="Output file path")
+    rec_parser.add_argument("--map-size", type=int, default=100, help="Map size")
+    rec_parser.add_argument("--agents", type=int, default=100, help="Number of agents")
+
+    # Replay playback subcommand
+    replay_parser = subparsers.add_parser("replay", help="Play back a recorded replay")
+    replay_parser.add_argument("file", type=str, help="Replay file path (.json.gz)")
+    replay_parser.add_argument("--fps", type=int, default=60, help="Render FPS")
+
     args = parser.parse_args()
 
     if args.command == "simulate":
@@ -120,12 +132,21 @@ def main() -> None:
         from src.gui.viewer import run_viewer
         run_viewer(seed=args.seed, map_size=args.map_size,
                    num_agents=args.agents, fps=args.fps)
+    elif args.command == "record":
+        from src.core.replay import record_replay
+        path = record_replay(args.seed, args.output, args.map_size, args.map_size, args.agents)
+        print(f"Replay saved to: {path}")
+    elif args.command == "replay":
+        from src.gui.replay_viewer import run_replay_viewer
+        run_replay_viewer(args.file, fps=args.fps)
     else:
         parser.print_help()
         print("\nExamples:")
         print("  python src/main.py simulate --sims 1000 --output results/")
         print("  python src/main.py evolve --generations 200 --output evolution_results/")
         print("  python src/main.py watch --seed 42")
+        print("  python src/main.py record --seed 42 --output replays/game1.json.gz")
+        print("  python src/main.py replay replays/game1.json.gz")
 
 
 if __name__ == "__main__":
