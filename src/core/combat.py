@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 if TYPE_CHECKING:
-    from src.agent import Agent
+    from src.core.agent import Agent
 
 
 def attempt_stealth_escape(

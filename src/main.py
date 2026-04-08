@@ -10,8 +10,8 @@ import time
 # Ensure the project root is on the path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src.batch import run_batch
-from src.analytics import generate_report, print_summary, _aggregate
+from src.analysis.batch import run_batch
+from src.analysis.analytics import generate_report, print_summary, _aggregate
 
 
 def run_simulate(args: argparse.Namespace) -> None:
@@ -46,8 +46,8 @@ def run_simulate(args: argparse.Namespace) -> None:
 
 def run_evolve(args: argparse.Namespace) -> None:
     """Run genetic algorithm evolution."""
-    from src.genetic import evolve
-    from src.ga_analytics import generate_evolution_report, print_evolution_summary
+    from src.evolution.genetic import evolve
+    from src.evolution.ga_analytics import generate_evolution_report, print_evolution_summary
 
     os.makedirs(args.output, exist_ok=True)
 

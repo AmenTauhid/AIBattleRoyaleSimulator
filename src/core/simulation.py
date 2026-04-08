@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from src.agent import (
+from src.core.agent import (
     Action,
     ActionType,
     Agent,
@@ -16,8 +16,8 @@ from src.agent import (
     decide_action,
     generate_agents,
 )
-from src.combat import resolve_combat
-from src.map import GameMap, generate_map, shrink_zone
+from src.core.combat import resolve_combat
+from src.core.map import GameMap, generate_map, shrink_zone
 
 
 @dataclass(slots=True)

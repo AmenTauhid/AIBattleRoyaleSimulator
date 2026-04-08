@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 if TYPE_CHECKING:
-    from src.map import GameMap
+    from src.core.map import GameMap
 
 
 class BehaviorType(Enum):

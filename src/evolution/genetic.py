@@ -7,10 +7,10 @@ from dataclasses import dataclass, field
 import numpy as np
 from tqdm import tqdm
 
-from src.agent import Agent, BehaviorType, Buff, Stats
-from src.combat import resolve_combat
-from src.map import GameMap, generate_map, shrink_zone
-from src.simulation import (
+from src.core.agent import Agent, BehaviorType, Buff, Stats, decide_action, ActionType
+from src.core.combat import resolve_combat
+from src.core.map import GameMap, generate_map, shrink_zone
+from src.core.simulation import (
     GameState,
     KillEvent,
     DeathEvent,
@@ -23,7 +23,6 @@ from src.simulation import (
     _check_loot,
     _resolve_all_combat,
 )
-from src.agent import decide_action, ActionType
 
 
 STAT_NAMES = ["aggression", "speed", "stealth", "accuracy", "health", "luck"]
@@ -225,7 +224,7 @@ def evaluate_population(
                 _check_loot(agent, state)
 
             # Combat with kill rewards
-            from src.simulation import _find_combat_pairs
+            from src.core.simulation import _find_combat_pairs
             pairs = _find_combat_pairs(state)
             game_rng.shuffle(pairs)
             for a, b in pairs:

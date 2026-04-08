@@ -10,8 +10,8 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-from src.agent import BehaviorType
-from src.genetic import EvolutionResult, STAT_NAMES, BEHAVIORS
+from src.core.agent import BehaviorType
+from src.evolution.genetic import EvolutionResult, STAT_NAMES, BEHAVIORS
 
 
 BEHAVIOR_NAMES = [b.value for b in BEHAVIORS]

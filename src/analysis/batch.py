@@ -8,7 +8,7 @@ from functools import partial
 
 from tqdm import tqdm
 
-from src.simulation import SimulationResult, run_simulation
+from src.core.simulation import SimulationResult, run_simulation
 
 
 def _run_sim_wrapper(seed: int, map_width: int, map_height: int) -> SimulationResult:

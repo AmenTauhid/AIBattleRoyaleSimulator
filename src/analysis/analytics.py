@@ -11,8 +11,8 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-from src.agent import BehaviorType, Stats
-from src.simulation import SimulationResult
+from src.core.agent import BehaviorType, Stats
+from src.core.simulation import SimulationResult
 
 
 STAT_NAMES = ["aggression", "speed", "stealth", "accuracy", "health", "luck"]
