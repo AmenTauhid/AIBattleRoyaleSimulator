@@ -26,6 +26,9 @@ src/
   evolution/
     genetic.py              # Genetic algorithm engine
     ga_analytics.py         # Evolution-specific visualizations
+  gui/
+    viewer.py               # Pygame real-time simulation viewer
+    colors.py               # Color constants and palettes
 ```
 
 ## Usage
@@ -67,6 +70,24 @@ python src/main.py evolve --generations 500 --games-per-eval 5
 | `--seed` | 42 | Random seed for reproducibility |
 
 **Output:** 5 evolution charts (fitness curve, stat evolution, behavior frequency, best genome radar, population box plots) + `evolution_report.md`
+
+### Watch Mode (Live Viewer)
+
+Watch a single simulation play out in real-time with a Pygame GUI:
+
+```bash
+python src/main.py watch --seed 42
+python src/main.py watch --seed 123 --agents 50 --map-size 80
+```
+
+| Argument | Default | Description |
+|----------|---------|-------------|
+| `--seed` | 42 | Random seed |
+| `--map-size` | 100 | Map size |
+| `--agents` | 100 | Number of agents |
+| `--fps` | 60 | Render framerate |
+
+**Controls:** SPACE play/pause, S step one turn, UP/DOWN adjust speed, R restart with new seed, ESC quit.
 
 ## How It Works
 

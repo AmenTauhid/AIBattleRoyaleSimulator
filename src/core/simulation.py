@@ -235,6 +235,82 @@ def _resolve_all_combat(state: GameState, rng: np.random.Generator) -> None:
             b.hp = min(b.max_hp, b.hp + b.max_hp // 4)
 
 
+def _run_turn(state: GameState, agents: list[Agent], game_map: GameMap,
+              rng: np.random.Generator, zone_shrink_interval: int) -> None:
+    """Execute a single turn of the simulation (mutates state in place)."""
+    state.turn += 1
+
+    # Zone shrink
+    if state.turn % zone_shrink_interval == 0:
+        shrink_zone(state.game_map)
+
+    # Zone damage
+    _apply_zone_damage(state)
+
+    if state.alive_count <= 1:
+        return
+
+    # Buff tick
+    _tick_buffs(agents)
+
+    # Decision phase
+    actions: dict[int, Action] = {}
+    alive = state.alive_agents
+    for agent in alive:
+        actions[agent.id] = decide_action(agent, agents, game_map, rng)
+
+    # Movement (random order)
+    move_order = list(range(len(alive)))
+    rng.shuffle(move_order)
+    for idx in move_order:
+        agent = alive[idx]
+        if agent.alive:
+            _resolve_movement(agent, actions[agent.id], state)
+
+    # Loot collection
+    for agent in state.alive_agents:
+        _check_loot(agent, state)
+
+    # Combat
+    _resolve_all_combat(state, rng)
+
+    # Bookkeeping
+    for agent in state.alive_agents:
+        agent.turns_survived += 1
+
+
+def step_simulation(
+    seed: int,
+    map_width: int = 100,
+    map_height: int = 100,
+    num_agents: int = 100,
+    max_turns: int = 500,
+    zone_shrink_interval: int = 15,
+):
+    """Generator that yields GameState after each turn for real-time rendering."""
+    rng = np.random.default_rng(seed)
+
+    game_map = generate_map(rng, width=map_width, height=map_height)
+    agents = generate_agents(rng, game_map, num_agents=num_agents)
+    state = GameState(game_map=game_map, agents=agents)
+
+    yield state  # initial state (turn 0)
+
+    while state.alive_count > 1 and state.turn < max_turns:
+        prev_kill_count = len(state.kill_events)
+        prev_death_count = len(state.death_events)
+
+        _run_turn(state, agents, game_map, rng, zone_shrink_interval)
+
+        # Attach new events this turn for the viewer to consume
+        state.new_kills = state.kill_events[prev_kill_count:]
+        state.new_deaths = state.death_events[prev_death_count:]
+
+        yield state
+
+    yield state  # final state
+
+
 def run_simulation(
     seed: int,
     map_width: int = 100,
@@ -251,45 +327,7 @@ def run_simulation(
     state = GameState(game_map=game_map, agents=agents)
 
     while state.alive_count > 1 and state.turn < max_turns:
-        state.turn += 1
-
-        # Zone shrink
-        if state.turn % zone_shrink_interval == 0:
-            shrink_zone(state.game_map)
-
-        # Zone damage
-        _apply_zone_damage(state)
-
-        if state.alive_count <= 1:
-            break
-
-        # Buff tick
-        _tick_buffs(agents)
-
-        # Decision phase
-        actions: dict[int, Action] = {}
-        alive = state.alive_agents
-        for agent in alive:
-            actions[agent.id] = decide_action(agent, agents, game_map, rng)
-
-        # Movement (random order)
-        move_order = list(range(len(alive)))
-        rng.shuffle(move_order)
-        for idx in move_order:
-            agent = alive[idx]
-            if agent.alive:
-                _resolve_movement(agent, actions[agent.id], state)
-
-        # Loot collection
-        for agent in state.alive_agents:
-            _check_loot(agent, state)
-
-        # Combat
-        _resolve_all_combat(state, rng)
-
-        # Bookkeeping
-        for agent in state.alive_agents:
-            agent.turns_survived += 1
+        _run_turn(state, agents, game_map, rng, zone_shrink_interval)
 
     # Determine winner
     survivors = state.alive_agents

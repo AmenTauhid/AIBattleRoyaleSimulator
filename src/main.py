@@ -103,18 +103,29 @@ def main() -> None:
     evo_parser.add_argument("--map-size", type=int, default=100, help="Map size (default: 100)")
     evo_parser.add_argument("--seed", type=int, default=42, help="Random seed (default: 42)")
 
+    # Watch subcommand
+    watch_parser = subparsers.add_parser("watch", help="Watch a simulation live in Pygame")
+    watch_parser.add_argument("--seed", type=int, default=42, help="Random seed (default: 42)")
+    watch_parser.add_argument("--map-size", type=int, default=100, help="Map size (default: 100)")
+    watch_parser.add_argument("--agents", type=int, default=100, help="Number of agents (default: 100)")
+    watch_parser.add_argument("--fps", type=int, default=60, help="Render FPS (default: 60)")
+
     args = parser.parse_args()
 
     if args.command == "simulate":
         run_simulate(args)
     elif args.command == "evolve":
         run_evolve(args)
+    elif args.command == "watch":
+        from src.gui.viewer import run_viewer
+        run_viewer(seed=args.seed, map_size=args.map_size,
+                   num_agents=args.agents, fps=args.fps)
     else:
-        # Default: simulate mode with legacy flat args
         parser.print_help()
         print("\nExamples:")
         print("  python src/main.py simulate --sims 1000 --output results/")
         print("  python src/main.py evolve --generations 200 --output evolution_results/")
+        print("  python src/main.py watch --seed 42")
 
 
 if __name__ == "__main__":
