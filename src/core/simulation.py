@@ -17,7 +17,7 @@ from src.core.agent import (
     generate_agents,
 )
 from src.core.combat import resolve_combat
-from src.core.map import GameMap, generate_map, shrink_zone
+from src.core.map import GameMap, generate_map, shrink_zone, spawn_supply_drop
 
 
 @dataclass(slots=True)
@@ -135,6 +135,10 @@ def _resolve_movement(
     speed = agent.effective_stat("speed")
     steps = max(1, speed)
 
+    # Water slows movement by 50%
+    if state.game_map.is_water(agent.x, agent.y):
+        steps = max(1, steps // 2)
+
     dx, dy = action.dx, action.dy
     for _ in range(steps):
         nx, ny = agent.x + dx, agent.y + dy
@@ -142,16 +146,16 @@ def _resolve_movement(
             agent.x = nx
             agent.y = ny
         else:
-            # Try just horizontal or just vertical
             if dx != 0 and state.game_map.is_walkable(agent.x + dx, agent.y):
                 agent.x += dx
             elif dy != 0 and state.game_map.is_walkable(agent.x, agent.y + dy):
                 agent.y += dy
-            break  # stuck
+            break
 
 
 def _check_loot(agent: Agent, state: GameState) -> None:
-    """Pick up loot on the agent's tile."""
+    """Pick up loot, weapons, armor, and supply drops on the agent's tile."""
+    # Stat buff loot
     for loot in state.game_map.loot_items:
         if not loot.collected and loot.x == agent.x and loot.y == agent.y:
             loot.collected = True
@@ -161,7 +165,38 @@ def _check_loot(agent: Agent, state: GameState) -> None:
                 amount=loot.amount,
                 turns_remaining=loot.duration,
             ))
-            break  # one loot per tile per turn
+            break
+
+    # Ground weapons (pick up if better than current)
+    gm = state.game_map
+    remaining_weapons = []
+    for wx, wy, weapon in gm.ground_weapons:
+        if wx == agent.x and wy == agent.y:
+            if agent.weapon is None or weapon.tier > agent.weapon.tier:
+                agent.weapon = weapon
+            # Either way, remove from ground
+        else:
+            remaining_weapons.append((wx, wy, weapon))
+    gm.ground_weapons = remaining_weapons
+
+    # Ground armor (pick up if better than current)
+    remaining_armor = []
+    for ax, ay, armor in gm.ground_armor:
+        if ax == agent.x and ay == agent.y:
+            if agent.armor is None or armor.tier > agent.armor.tier:
+                agent.armor = armor
+        else:
+            remaining_armor.append((ax, ay, armor))
+    gm.ground_armor = remaining_armor
+
+    # Supply drops
+    for drop in gm.supply_drops:
+        if not drop.collected and drop.x == agent.x and drop.y == agent.y:
+            drop.collected = True
+            if drop.weapon and (agent.weapon is None or drop.weapon.tier > agent.weapon.tier):
+                agent.weapon = drop.weapon
+            if drop.armor and (agent.armor is None or drop.armor.tier > agent.armor.tier):
+                agent.armor = drop.armor
 
 
 def _find_combat_pairs(state: GameState) -> list[tuple[Agent, Agent]]:
@@ -215,7 +250,7 @@ def _resolve_all_combat(state: GameState, rng: np.random.Generator) -> None:
         if not a.alive or not b.alive:
             continue
 
-        result = resolve_combat(a, b, rng)
+        result = resolve_combat(a, b, rng, game_map=state.game_map)
 
         if result["escaped"]:
             # Defender flees to adjacent tile
@@ -243,6 +278,10 @@ def _run_turn(state: GameState, agents: list[Agent], game_map: GameMap,
     # Zone shrink
     if state.turn % zone_shrink_interval == 0:
         shrink_zone(state.game_map)
+
+    # Supply drop every 30 turns
+    if state.turn % 30 == 0 and state.alive_count > 5:
+        spawn_supply_drop(state.game_map, rng, state.turn)
 
     # Zone damage
     _apply_zone_damage(state)

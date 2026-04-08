@@ -80,6 +80,10 @@ class Agent:
     turns_survived: int = 0
     loot_collected: int = 0
     active_buffs: list[Buff] = field(default_factory=list)
+    weapon: object = None   # Weapon or None
+    armor: object = None    # Armor or None
+    team_id: int = -1       # -1 = solo, 0+ = team index
+    downed: bool = False    # for squad mode: knocked but revivable
 
     def effective_stat(self, name: str) -> int:
         base = getattr(self.base_stats, name)

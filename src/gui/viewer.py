@@ -81,12 +81,26 @@ class Viewer:
         self._render_static_map()
 
     def _render_static_map(self):
-        """Pre-render obstacles onto a cached surface."""
+        """Pre-render obstacles and terrain onto a cached surface."""
         self.map_surface = pygame.Surface((GRID_SIZE, GRID_SIZE))
         self.map_surface.fill(GRID_BG)
 
         cs = self.cell_size
-        for (ox, oy) in self.state.game_map.obstacles:
+        gm = self.state.game_map
+
+        # Terrain tiles
+        for (wx, wy) in gm.water_tiles:
+            rect = pygame.Rect(wx * cs, wy * cs, max(cs, 1), max(cs, 1))
+            pygame.draw.rect(self.map_surface, WATER, rect)
+        for (gx, gy) in gm.grass_tiles:
+            rect = pygame.Rect(gx * cs, gy * cs, max(cs, 1), max(cs, 1))
+            pygame.draw.rect(self.map_surface, TALL_GRASS, rect)
+        for (hx, hy) in gm.high_ground_tiles:
+            rect = pygame.Rect(hx * cs, hy * cs, max(cs, 1), max(cs, 1))
+            pygame.draw.rect(self.map_surface, HIGH_GROUND, rect)
+
+        # Obstacles on top
+        for (ox, oy) in gm.obstacles:
             rect = pygame.Rect(ox * cs, oy * cs, max(cs, 1), max(cs, 1))
             pygame.draw.rect(self.map_surface, OBSTACLE, rect)
 
@@ -231,14 +245,40 @@ class Viewer:
         pygame.draw.rect(self.screen, ZONE_BORDER, border_rect, 2)
 
     def _render_loot(self):
-        """Draw uncollected loot items."""
+        """Draw loot, weapons, armor, and supply drops."""
         cs = self.cell_size
         loot_r = max(1, cs / 4)
-        for loot in self.state.game_map.loot_items:
+        gm = self.state.game_map
+
+        # Stat buff loot
+        for loot in gm.loot_items:
             if not loot.collected:
                 cx = loot.x * cs + cs / 2
                 cy = loot.y * cs + cs / 2
                 pygame.draw.circle(self.screen, LOOT, (cx, cy), loot_r)
+
+        # Ground weapons (small purple diamond)
+        for wx, wy, weapon in gm.ground_weapons:
+            cx = wx * cs + cs / 2
+            cy = wy * cs + cs / 2
+            r = max(1, cs / 3)
+            points = [(cx, cy - r), (cx + r, cy), (cx, cy + r), (cx - r, cy)]
+            pygame.draw.polygon(self.screen, WEAPON_GROUND, points)
+
+        # Ground armor (small blue square)
+        for ax, ay, armor in gm.ground_armor:
+            r = max(1, cs / 3)
+            rect = pygame.Rect(ax * cs + cs / 2 - r, ay * cs + cs / 2 - r, r * 2, r * 2)
+            pygame.draw.rect(self.screen, ARMOR_GROUND, rect)
+
+        # Supply drops (pulsing magenta circle)
+        for drop in gm.supply_drops:
+            if not drop.collected:
+                cx = drop.x * cs + cs / 2
+                cy = drop.y * cs + cs / 2
+                pulse = max(2, cs * 0.8)
+                pygame.draw.circle(self.screen, SUPPLY_DROP, (cx, cy), pulse)
+                pygame.draw.circle(self.screen, SUPPLY_DROP_GLOW, (cx, cy), pulse, 1)
 
     def _render_agents(self):
         """Draw alive agents as colored circles with HP bars."""
