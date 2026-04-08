@@ -34,6 +34,7 @@ BEHAVIOR_LABELS = {
     BehaviorType.CAMPER: "Camper",
     BehaviorType.SCAVENGER: "Scavenger",
     BehaviorType.NOMAD: "Nomad",
+    BehaviorType.ADAPTIVE: "Adaptive",
 }
 
 

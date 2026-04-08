@@ -27,6 +27,7 @@ AGENT_COLORS = {
     BehaviorType.CAMPER: (60, 130, 230),
     BehaviorType.SCAVENGER: (60, 200, 80),
     BehaviorType.NOMAD: (240, 200, 50),
+    BehaviorType.ADAPTIVE: (200, 100, 255),
 }
 
 AGENT_COLORS_DIM = {
@@ -34,6 +35,7 @@ AGENT_COLORS_DIM = {
     BehaviorType.CAMPER: (40, 85, 150),
     BehaviorType.SCAVENGER: (40, 130, 55),
     BehaviorType.NOMAD: (160, 130, 35),
+    BehaviorType.ADAPTIVE: (130, 65, 170),
 }
 
 # HP bars

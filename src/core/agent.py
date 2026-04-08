@@ -17,6 +17,7 @@ class BehaviorType(Enum):
     CAMPER = "camper"
     SCAVENGER = "scavenger"
     NOMAD = "nomad"
+    ADAPTIVE = "adaptive"
 
 
 class ActionType(Enum):
@@ -300,6 +301,8 @@ def decide_action(
         return _camper_decide(agent, agents, game_map, rng)
     elif agent.behavior == BehaviorType.SCAVENGER:
         return _scavenger_decide(agent, agents, game_map, rng)
+    elif agent.behavior == BehaviorType.ADAPTIVE:
+        return _adaptive_decide(agent, agents, game_map, rng)
     else:
         return _nomad_decide(agent, agents, game_map, rng)
 
@@ -392,3 +395,34 @@ def _nomad_decide(
     # Move randomly
     dx, dy = int(rng.integers(-1, 2)), int(rng.integers(-1, 2))
     return Action(ActionType.MOVE, dx, dy)
+
+
+def _adaptive_decide(
+    agent: Agent, agents: list[Agent], game_map: GameMap, rng: np.random.Generator,
+) -> Action:
+    """Adaptive agent that switches strategy based on game state."""
+    alive = _alive_count(agents)
+    hp_frac = agent.hp / agent.max_hp if agent.max_hp > 0 else 0
+    has_weapon = agent.weapon is not None
+    zone_size = max(1, (game_map.zone_max_x - game_map.zone_min_x) *
+                       (game_map.zone_max_y - game_map.zone_min_y))
+    density = alive / max(zone_size, 1) * 10000  # agents per 10k tiles
+
+    # Phase 1: Early game (many agents, big zone) -> scavenge for loot
+    if alive > 60 and not has_weapon:
+        return _scavenger_decide(agent, agents, game_map, rng)
+
+    # Phase 2: Well-equipped + healthy -> hunt aggressively
+    if has_weapon and hp_frac > 0.6 and alive > 15:
+        return _hunter_decide(agent, agents, game_map, rng)
+
+    # Phase 3: Low HP -> camp and avoid fights
+    if hp_frac < 0.35:
+        return _camper_decide(agent, agents, game_map, rng)
+
+    # Phase 4: Dense zone (many agents in small area) -> hunt
+    if density > 3:
+        return _hunter_decide(agent, agents, game_map, rng)
+
+    # Phase 5: Mid game default -> nomad (explore, fight opportunistically)
+    return _nomad_decide(agent, agents, game_map, rng)
