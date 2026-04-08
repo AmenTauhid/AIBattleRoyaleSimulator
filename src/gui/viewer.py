@@ -10,8 +10,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 
 import pygame
 from pygame.locals import (
-    QUIT, KEYDOWN, K_SPACE, K_UP, K_DOWN, K_LEFT, K_RIGHT,
-    K_s, K_r, K_ESCAPE, K_q,
+    QUIT, KEYDOWN, MOUSEBUTTONDOWN, K_SPACE, K_UP, K_DOWN, K_LEFT, K_RIGHT,
+    K_s, K_r, K_v, K_l, K_ESCAPE, K_q,
 )
 
 from src.core.agent import BehaviorType
@@ -76,6 +76,9 @@ class Viewer:
         self.kill_feed: list[str] = []
         self.effects: list[tuple[int, int, float, tuple]] = []  # (x, y, timer, color)
         self.total_agents = self.num_agents
+        self.selected_agent_id: int = -1  # click-to-follow
+        self.show_vision = False          # toggle V key
+        self.show_labels = False          # toggle L key
 
         # Pre-render static map elements
         self._render_static_map()
@@ -113,6 +116,8 @@ class Viewer:
                     running = False
                 elif event.type == KEYDOWN:
                     running = self._handle_key(event.key)
+                elif event.type == MOUSEBUTTONDOWN and event.button == 1:
+                    self._handle_click(event.pos)
 
             # Advance simulation
             if not self.paused and not self.game_over:
@@ -149,7 +154,36 @@ class Viewer:
         elif key == K_r:
             self.seed += 1
             self._reset()
+        elif key == K_v:
+            self.show_vision = not self.show_vision
+        elif key == K_l:
+            self.show_labels = not self.show_labels
         return True
+
+    def _handle_click(self, pos: tuple[int, int]):
+        """Select/deselect agent by clicking on the grid."""
+        mx, my = pos
+        if mx >= GRID_SIZE:
+            return  # clicked on panel
+        cs = self.cell_size
+        grid_x = int(mx / cs)
+        grid_y = int(my / cs)
+
+        # Find closest alive agent to click position
+        best_id = -1
+        best_dist = 3  # max click distance in tiles
+        for agent in self.state.agents:
+            if not agent.alive:
+                continue
+            dist = abs(agent.x - grid_x) + abs(agent.y - grid_y)
+            if dist < best_dist:
+                best_dist = dist
+                best_id = agent.id
+
+        if best_id == self.selected_agent_id:
+            self.selected_agent_id = -1  # deselect on re-click
+        else:
+            self.selected_agent_id = best_id
 
     def _advance_turn(self):
         """Step the simulation forward one turn."""
@@ -281,7 +315,7 @@ class Viewer:
                 pygame.draw.circle(self.screen, SUPPLY_DROP_GLOW, (cx, cy), pulse, 1)
 
     def _render_agents(self):
-        """Draw alive agents as colored circles with HP bars."""
+        """Draw alive agents as colored circles with HP bars, vision, labels."""
         cs = self.cell_size
         agent_r = max(2, cs / 2.5)
 
@@ -292,13 +326,41 @@ class Viewer:
             cx = agent.x * cs + cs / 2
             cy = agent.y * cs + cs / 2
             color = AGENT_COLORS[agent.behavior]
+            is_selected = agent.id == self.selected_agent_id
+
+            # Vision range circle (toggle with V)
+            if self.show_vision or is_selected:
+                vision_r = max(1, 6 - agent.effective_stat("stealth") // 2)
+                pixel_r = vision_r * cs
+                vision_surf = pygame.Surface((pixel_r * 2, pixel_r * 2), pygame.SRCALPHA)
+                alpha = 40 if not is_selected else 60
+                pygame.draw.circle(vision_surf, (*color, alpha),
+                                   (pixel_r, pixel_r), pixel_r)
+                self.screen.blit(vision_surf, (cx - pixel_r, cy - pixel_r))
 
             # Agent circle
             pygame.draw.circle(self.screen, color, (cx, cy), agent_r)
 
-            # Outline for winner highlight
-            if self.game_over and agent.id == self.winner_id:
+            # Selection highlight
+            if is_selected:
+                pygame.draw.circle(self.screen, (255, 255, 255), (cx, cy), agent_r + 3, 2)
+                pygame.draw.circle(self.screen, color, (cx, cy), agent_r + 5, 1)
+
+            # Winner highlight
+            elif self.game_over and agent.id == self.winner_id:
                 pygame.draw.circle(self.screen, (255, 255, 255), (cx, cy), agent_r + 2, 2)
+
+            # Weapon indicator (small dot)
+            if agent.weapon:
+                tier_colors = {1: (180, 180, 180), 2: (100, 200, 255), 3: (255, 150, 255)}
+                wc = tier_colors.get(agent.weapon.tier, (180, 180, 180))
+                pygame.draw.circle(self.screen, wc, (cx + agent_r, cy - agent_r), max(1, cs / 6))
+
+            # Behavior label (toggle with L)
+            if self.show_labels:
+                label_text = BEHAVIOR_LABELS[agent.behavior][0]  # First letter
+                lbl = self.font.render(label_text, True, color)
+                self.screen.blit(lbl, (cx - 3, cy + agent_r + 1))
 
             # HP bar
             hp_frac = agent.hp / agent.max_hp if agent.max_hp > 0 else 0
@@ -390,6 +452,37 @@ class Viewer:
         else:
             y += 25
 
+        # Selected agent details
+        if self.selected_agent_id >= 0:
+            agent = self.state.agents[self.selected_agent_id]
+            pygame.draw.line(self.screen, PANEL_BORDER, (x, y), (PANEL_X + PANEL_WIDTH - 15, y))
+            y += 8
+            color = AGENT_COLORS[agent.behavior]
+            header = f"AGENT #{agent.id}"
+            self.screen.blit(self.font_large.render(header, True, color), (x, y))
+            y += 22
+            status_txt = "ALIVE" if agent.alive else "DEAD"
+            self.screen.blit(self.font.render(f"{BEHAVIOR_LABELS[agent.behavior]} - {status_txt}", True, TEXT_COLOR), (x, y))
+            y += 18
+            self.screen.blit(self.font.render(f"HP: {agent.hp}/{agent.max_hp}  Kills: {agent.kills}", True, TEXT_COLOR), (x, y))
+            y += 18
+            self.screen.blit(self.font.render(f"Pos: ({agent.x}, {agent.y})", True, TEXT_DIM), (x, y))
+            y += 18
+            # Stats
+            stats_str = f"AGG:{agent.base_stats.aggression} SPD:{agent.base_stats.speed} STL:{agent.base_stats.stealth}"
+            self.screen.blit(self.font.render(stats_str, True, TEXT_DIM), (x, y))
+            y += 16
+            stats_str2 = f"ACC:{agent.base_stats.accuracy} HP:{agent.base_stats.health} LCK:{agent.base_stats.luck}"
+            self.screen.blit(self.font.render(stats_str2, True, TEXT_DIM), (x, y))
+            y += 18
+            # Equipment
+            w_name = agent.weapon.name if agent.weapon else "None"
+            a_name = f"{agent.armor.name} ({agent.armor.durability})" if agent.armor else "None"
+            self.screen.blit(self.font.render(f"Weapon: {w_name}", True, TEXT_DIM), (x, y))
+            y += 16
+            self.screen.blit(self.font.render(f"Armor:  {a_name}", True, TEXT_DIM), (x, y))
+            y += 16
+
         # Separator
         pygame.draw.line(self.screen, PANEL_BORDER, (x, y), (PANEL_X + PANEL_WIDTH - 15, y))
         y += 10
@@ -450,7 +543,7 @@ class Viewer:
         pygame.draw.rect(self.screen, PANEL_BG, bar_rect)
         pygame.draw.line(self.screen, PANEL_BORDER, (0, bar_y), (GRID_SIZE, bar_y))
 
-        controls = "SPACE: Play/Pause  |  S: Step  |  UP/DN: Speed  |  R: Restart  |  ESC: Quit"
+        controls = "SPACE: Play/Pause | S: Step | UP/DN: Speed | V: Vision | L: Labels | R: Restart"
         text = self.font.render(controls, True, TEXT_DIM)
         self.screen.blit(text, (15, bar_y + 8))
 
